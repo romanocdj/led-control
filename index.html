@@ -1,9 +1,11 @@
+
+html
 <!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>XIAO ESP32-C6 LED Controller</title>
+    <title>XIAO 6-LED BLE Controller</title>
     <style>
         :root {
             --bg-color: #121212;
@@ -82,6 +84,15 @@
             font-size: 14px;
             color: #aaa;
         }
+        select {
+            width: 100%;
+            padding: 10px;
+            background: #333;
+            color: #fff;
+            border: 1px solid #444;
+            border-radius: 4px;
+            font-size: 16px;
+        }
         input[type="color"] {
             width: 100%;
             height: 40px;
@@ -115,7 +126,7 @@
 <body>
 
 <div class="container">
-    <h1>XIAO Controller</h1>
+    <h1>XIAO 6-LED Controller</h1>
     
     <div class="status-panel">
         <span>Status: <strong id="status-text">Disconnected</strong></span>
@@ -126,7 +137,21 @@
 
     <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
 
-    <!-- Shared configuration attributes -->
+    <!-- Target LED Selector Section -->
+    <div class="control-group">
+        <label for="led-index">Target LED Selection</label>
+        <select id="led-index">
+            <option value="255">Apply to All LEDs</option>
+            <option value="0">LED 1</option>
+            <option value="1">LED 2</option>
+            <option value="2">LED 3</option>
+            <option value="3">LED 4</option>
+            <option value="4">LED 5</option>
+            <option value="5">LED 6</option>
+        </select>
+    </div>
+
+    <!-- Color Configuration Panel -->
     <div class="control-group">
         <div class="color-pickers">
             <div class="picker-box">
@@ -140,12 +165,13 @@
         </div>
     </div>
 
+    <!-- Speed Adjustment Panel -->
     <div class="control-group">
         <label id="lbl-speed">Effect Speed: 1000 ms</label>
         <input type="range" id="speed" min="50" max="3000" step="50" value="1000" oninput="updateSpeedLabel(this.value)">
     </div>
 
-    <!-- Active Triggers -->
+    <!-- Animation Commands -->
     <h2>Animations</h2>
     <button class="btn-effect" onclick="sendEffect('SOLID')">Solid Color</button>
     <button class="btn-effect" onclick="sendEffect('BREATHE')">Breathe</button>
@@ -155,13 +181,13 @@
     <button class="btn-effect" onclick="sendEffect('STROBE')">Strobe</button>
     <button class="btn-effect" onclick="sendEffect('RAINBOW')">Rainbow Wave</button>
     
-    <button class="btn-off" onclick="sendEffect('OFF')">Turn LEDs Off</button>
+    <button class="btn-off" onclick="sendEffect('OFF')">Turn Selected Off</button>
 
     <div class="log-box" id="log">Console ready...</div>
 </div>
 
 <script>
-    // UUID configurations precisely matching your XIAO firmware
+    // GATT UUIDs matching your firmware configuration
     const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const RX_CHARACTERISTIC_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
 
@@ -186,7 +212,7 @@
         }
 
         try {
-            log("Requesting ESP32-C6 Bluetooth Device...");
+            log("Searching for ESP32-C6 Peripheral...");
             bleDevice = await navigator.bluetooth.requestDevice({
                 filters: [{ name: 'ESP32-C6-LED' }],
                 optionalServices: [SERVICE_UUID]
@@ -194,24 +220,23 @@
 
             bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
 
-            log("Connecting to GATT Server...");
+            log("Connecting to server...");
             const server = await bleDevice.gatt.connect();
 
-            log("Locating Custom LED Service...");
+            log("Fetching service profile...");
             const service = await server.getPrimaryService(SERVICE_UUID);
 
-            log("Fetching RX Writing Characteristic...");
+            log("Fetching writing interface profile...");
             rxCharacteristic = await service.getCharacteristic(RX_CHARACTERISTIC_UUID);
 
-            // Update UI state to Connected
             document.getElementById('status-text').innerText = "Connected";
             document.getElementById('status-dot').classList.add('connected');
             document.getElementById('btn-conn').innerText = "Disconnect";
             document.getElementById('btn-conn').className = "btn-disconnect";
-            log("Fully Bonded! Ready to stream.");
+            log("Link active! Pipeline ready.");
 
         } catch (error) {
-            log(`Error: ${error.message}`);
+            log(`Link Exception: ${error.message}`);
             console.error(error);
         }
     }
@@ -223,61 +248,44 @@
         document.getElementById('btn-conn').className = "btn-connect";
         rxCharacteristic = null;
         bleDevice = null;
-        log("Peripheral Disconnected Safely.");
+        log("Peripheral disconnected.");
     }
 
     async function sendEffect(mode) {
         if (!rxCharacteristic) {
-            log("Error: Must connect to Bluetooth first!");
+            log("Error: Establish Bluetooth connection first!");
             return;
         }
 
-        // Extract parameters from inputs and scrub the default hex '#' marker
+        // Gather UI fields
+        const ledSel = document.getElementById('led-index').value;
         const cA = document.getElementById('colorA').value.replace('#', '');
         const cB = document.getElementById('colorB').value.replace('#', '');
         const speed = document.getElementById('speed').value;
         
         let commandStr = "";
 
-        // Construct commands strictly adhering to the firmware string-free schema
+        // Construct 6-LED frame protocol matching your new token parsing engine:
+        // Format: CMD:LED_INDEX:SPEED:COLOR_HEX_A:COLOR_HEX_B
         switch(mode) {
             case 'SOLID':
-                commandStr = `SOLID:${cA}`;
+                commandStr = `SOLID:${ledSel}:${cA}`;
                 break;
             case 'BREATHE':
-                commandStr = `BREATHE:${speed}:${cA}`;
+                commandStr = `BREATHE:${ledSel}:${speed}:${cA}`;
                 break;
             case 'FADE':
-                commandStr = `FADE:${speed}:${cA}:${cB}`;
+                commandStr = `FADE:${ledSel}:${speed}:${cA}:${cB}`;
                 break;
             case 'CANDLE':
-                commandStr = `CANDLE:${speed}:${cA}`;
+                commandStr = `CANDLE:${ledSel}:${speed}:${cA}`;
                 break;
             case 'BLINK':
-                commandStr = `BLINK:${speed}:${cA}`;
+                commandStr = `BLINK:${ledSel}:${speed}:${cA}`;
                 break;
             case 'STROBE':
-                commandStr = `STROBE:${speed}:${cA}`;
+                commandStr = `STROBE:${ledSel}:${speed}:${cA}`;
                 break;
             case 'RAINBOW':
-                commandStr = `RAINBOW:${speed}`;
-                break;
-            case 'OFF':
-                commandStr = "OFF";
-                break;
-        }
-
-        try {
-            log(`Streaming payload: "${commandStr}"`);
-            // Convert to byte buffer array transmission
-            const encoder = new TextEncoder();
-            const data = encoder.encode(commandStr);
-            await rxCharacteristic.writeValue(data);
-        } catch(error) {
-            log(`Tx Failed: ${error.message}`);
-        }
-    }
-</script>
-
-</body>
-</html>
+                // Rainbow standardizes over the full indexed space
+                commandStr = `RAINBOW:${ledSel}:${speed}`;
