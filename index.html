@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>ESP32-C6 LED Control</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <style>
+        body { font-family: -apple-system, sans-serif; text-align: center; padding: 1.5em; background: #111; color: #fff; }
+        h1 { font-size: 1.4em; }
+        button { padding: 0.9em 1.8em; font-size: 1em; border-radius: 8px; border: none; background: #007bff; color: white; cursor: pointer; margin: 0.3em; }
+        button.off { background: #555; }
+        #status { margin: 1em 0; color: #aaa; font-size: 0.9em; }
+        label { display: block; margin-top: 1em; font-size: 0.9em; color: #ccc; }
+        input[type="color"] { margin: 0.3em; width: 60px; height: 60px; border: none; border-radius: 50%; cursor: pointer; background: none; }
+        input[type="range"] { width: 90%; }
+        select { padding: 0.6em; font-size: 1em; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; }
+        .row { display: flex; justify-content: center; gap: 1em; align-items: center; flex-wrap: wrap; }
+        .card { background: #1c1c1c; border-radius: 12px; padding: 1em; margin: 1em 0; }
+    </style>
+</head>
+<body>
+    <h1>ESP32-C6 LED Control</h1>
+    <button id="connectBtn">Connect</button>
+    <p id="status">Disconnected</p>
+
+    <div class="card">
+        <label>Effect</label>
+        <select id="effectSelect">
+            <option value="SOLID">Solid</option>
+            <option value="BREATHE">Breathe</option>
+            <option value="FADE">Fade (2 colors)</option>
+            <option value="CANDLE">Candle Flicker</option>
+            <option value="BLINK">Blink</option>
+            <option value="STROBE">Strobe</option>
+            <option value="RAINBOW">Rainbow</option>
+        </select>
+
+        <label>Color 1 (primary / base)</label>
+        <input type="color" id="color1" value="#ff0000">
+
+        <label>Color 2 (for Fade only)</label>
+        <input type="color" id="color2" value="#0000ff">
+
+        <label>Speed: <span id="speedValue">1000</span> ms</label>
+        <input type="range" id="speedSlider" min="20" max="5000" value="1000" step="10">
+
+        <div class="row">
+            <button id="applyBtn">Apply Effect</button>
+            <button id="offBtn" class="off">Off</button>
+        </div>
+    </div>
+
+    <script>
+        const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
+        const RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
+        let bleDevice, rxCharacteristic;
+        const connectBtn = document.getElementById('connectBtn');
+        const statusEl = document.getElementById('status');
+        const effectSelect = document.getElementById('effectSelect');
+        const color1 = document.getElementById('color1');
+        const color2 = document.getElementById('color2');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const applyBtn = document.getElementById('applyBtn');
+        const offBtn = document.getElementById('offBtn');
+
+        speedSlider.addEventListener('input', () => { speedValue.textContent = speedSlider.value; });
+
+        connectBtn.addEventListener('click', async () => {
+            try {
+                statusEl.textContent = 'Scanning...';
+                bleDevice = await navigator.bluetooth.requestDevice({
+                    filters: [{ name: 'ESP32-C6-LED' }],
+                    optionalServices: [SERVICE_UUID]
+                });
+                const server = await bleDevice.gatt.connect();
+                const service = await server.getPrimaryService(SERVICE_UUID);
+                rxCharacteristic = await service.getCharacteristic(RX_UUID);
+                statusEl.textContent = 'Connected';
+                connectBtn.textContent = 'Disconnect';
+                connectBtn.onclick = () => {
+                    bleDevice.gatt.disconnect();
+                    statusEl.textContent = 'Disconnected';
+                    connectBtn.textContent = 'Connect';
+                    connectBtn.onclick = null;
+                };
+                bleDevice.addEventListener('gattserverdisconnected', () => {
+                    statusEl.textContent = 'Disconnected';
+                    connectBtn.textContent = 'Connect';
+                });
+            } catch (e) {
+                statusEl.textContent = 'Failed: ' + e.message;
+            }
+        });
+
+        async function sendCommand(cmd) {
+            if (!rxCharacteristic) { statusEl.textContent = 'Not connected'; return; }
+            try {
+                await rxCharacteristic.writeValue(new TextEncoder().encode(cmd));
+                statusEl.textContent = 'Sent: ' + cmd;
+            } catch (e) { statusEl.textContent = 'Write failed'; }
+        }
+
+        applyBtn.addEventListener('click', () => {
+            const mode = effectSelect.value;
+            const speed = speedSlider.value;
+            const c1 = color1.value.slice(1);
+            const c2 = color2.value.slice(1);
+            let cmd = '';
+            switch (mode) {
+                case 'SOLID':   cmd = `SOLID:${c1}`; break;
+                case 'BREATHE': cmd = `BREATHE:${speed}:${c1}`; break;
+                case 'FADE':    cmd = `FADE:${speed}:${c1}:${c2}`; break;
+                case 'CANDLE':  cmd = `CANDLE:${speed}:${c1}`; break;
+                case 'BLINK':   cmd = `BLINK:${speed}:${c1}`; break;
+                case 'STROBE':  cmd = `STROBE:${speed}:${c1}`; break;
+                case 'RAINBOW': cmd = `RAINBOW:${speed}`; break;
+            }
+            sendCommand(cmd);
+        });
+
+        offBtn.addEventListener('click', () => sendCommand('OFF'));
+    </script>
+</body>
+</html>
