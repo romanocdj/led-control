@@ -1,124 +1,283 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>ESP32-C6 LED Control</title>
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>XIAO ESP32-C6 LED Controller</title>
     <style>
-        body { font-family: -apple-system, sans-serif; text-align: center; padding: 1.5em; background: #111; color: #fff; }
-        h1 { font-size: 1.4em; }
-        button { padding: 0.9em 1.8em; font-size: 1em; border-radius: 8px; border: none; background: #007bff; color: white; cursor: pointer; margin: 0.3em; }
-        button.off { background: #555; }
-        #status { margin: 1em 0; color: #aaa; font-size: 0.9em; }
-        label { display: block; margin-top: 1em; font-size: 0.9em; color: #ccc; }
-        input[type="color"] { margin: 0.3em; width: 60px; height: 60px; border: none; border-radius: 50%; cursor: pointer; background: none; }
-        input[type="range"] { width: 90%; }
-        select { padding: 0.6em; font-size: 1em; border-radius: 6px; border: 1px solid #444; background: #222; color: #fff; }
-        .row { display: flex; justify-content: center; gap: 1em; align-items: center; flex-wrap: wrap; }
-        .card { background: #1c1c1c; border-radius: 12px; padding: 1em; margin: 1em 0; }
+        :root {
+            --bg-color: #121212;
+            --card-color: #1e1e1e;
+            --accent-color: #00adb5;
+            --text-color: #eeeeee;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            justify-content: center;
+        }
+        .container {
+            width: 100%;
+            max-width: 500px;
+            background: var(--card-color);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.5);
+        }
+        h1, h2 {
+            text-align: center;
+            margin-top: 0;
+        }
+        .status-panel {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: #252525;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        .status-dot {
+            width: 12px;
+            height: 12px;
+            background-color: #ff4444;
+            border-radius: 50%;
+            display: inline-block;
+        }
+        .status-dot.connected {
+            background-color: #00c851;
+        }
+        button {
+            width: 100%;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+        .btn-connect {
+            background-color: var(--accent-color);
+            color: #fff;
+        }
+        .btn-connect:hover { background-color: #008c95; }
+        .btn-disconnect { background-color: #cc0000; color: #fff; }
+        .btn-effect { background-color: #333; color: #fff; margin-bottom: 10px; }
+        .btn-effect:hover { background-color: #444; }
+        .btn-off { background-color: #555; color: #fff; margin-top: 15px; }
+        .control-group {
+            margin-bottom: 15px;
+            background: #252525;
+            padding: 15px;
+            border-radius: 8px;
+        }
+        label {
+            display: block;
+            margin-bottom: 8px;
+            font-size: 14px;
+            color: #aaa;
+        }
+        input[type="color"] {
+            width: 100%;
+            height: 40px;
+            border: none;
+            border-radius: 4px;
+            background: none;
+            cursor: pointer;
+        }
+        input[type="range"] {
+            width: 100%;
+            accent-color: var(--accent-color);
+        }
+        .color-pickers {
+            display: flex;
+            gap: 10px;
+        }
+        .picker-box { flex: 1; }
+        .log-box {
+            background: #000;
+            font-family: monospace;
+            padding: 10px;
+            border-radius: 6px;
+            height: 60px;
+            overflow-y: auto;
+            font-size: 12px;
+            color: #00ff00;
+            margin-top: 15px;
+        }
     </style>
 </head>
 <body>
-    <h1>ESP32-C6 LED Control</h1>
-    <button id="connectBtn">Connect</button>
-    <p id="status">Disconnected</p>
 
-    <div class="card">
-        <label>Effect</label>
-        <select id="effectSelect">
-            <option value="SOLID">Solid</option>
-            <option value="BREATHE">Breathe</option>
-            <option value="FADE">Fade (2 colors)</option>
-            <option value="CANDLE">Candle Flicker</option>
-            <option value="BLINK">Blink</option>
-            <option value="STROBE">Strobe</option>
-            <option value="RAINBOW">Rainbow</option>
-        </select>
+<div class="container">
+    <h1>XIAO Controller</h1>
+    
+    <div class="status-panel">
+        <span>Status: <strong id="status-text">Disconnected</strong></span>
+        <div id="status-dot" class="status-dot"></div>
+    </div>
 
-        <label>Color 1 (primary / base)</label>
-        <input type="color" id="color1" value="#ff0000">
+    <button id="btn-conn" class="btn-connect" onclick="connectDisconnect()">Connect to ESP32-C6</button>
 
-        <label>Color 2 (for Fade only)</label>
-        <input type="color" id="color2" value="#0000ff">
+    <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
 
-        <label>Speed: <span id="speedValue">1000</span> ms</label>
-        <input type="range" id="speedSlider" min="20" max="5000" value="1000" step="10">
-
-        <div class="row">
-            <button id="applyBtn">Apply Effect</button>
-            <button id="offBtn" class="off">Off</button>
+    <!-- Shared configuration attributes -->
+    <div class="control-group">
+        <div class="color-pickers">
+            <div class="picker-box">
+                <label>Color A Primary</label>
+                <input type="color" id="colorA" value="#ff0000">
+            </div>
+            <div class="picker-box">
+                <label>Color B (Fade Only)</label>
+                <input type="color" id="colorB" value="#0000ff">
+            </div>
         </div>
     </div>
 
-    <script>
-        const SERVICE_UUID = '6e400001-b5a3-f393-e0a9-e50e24dcca9e';
-        const RX_UUID = '6e400002-b5a3-f393-e0a9-e50e24dcca9e';
-        let bleDevice, rxCharacteristic;
-        const connectBtn = document.getElementById('connectBtn');
-        const statusEl = document.getElementById('status');
-        const effectSelect = document.getElementById('effectSelect');
-        const color1 = document.getElementById('color1');
-        const color2 = document.getElementById('color2');
-        const speedSlider = document.getElementById('speedSlider');
-        const speedValue = document.getElementById('speedValue');
-        const applyBtn = document.getElementById('applyBtn');
-        const offBtn = document.getElementById('offBtn');
+    <div class="control-group">
+        <label id="lbl-speed">Effect Speed: 1000 ms</label>
+        <input type="range" id="speed" min="50" max="3000" step="50" value="1000" oninput="updateSpeedLabel(this.value)">
+    </div>
 
-        speedSlider.addEventListener('input', () => { speedValue.textContent = speedSlider.value; });
+    <!-- Active Triggers -->
+    <h2>Animations</h2>
+    <button class="btn-effect" onclick="sendEffect('SOLID')">Solid Color</button>
+    <button class="btn-effect" onclick="sendEffect('BREATHE')">Breathe</button>
+    <button class="btn-effect" onclick="sendEffect('FADE')">Two-Color Fade</button>
+    <button class="btn-effect" onclick="sendEffect('CANDLE')">Candle Flicker</button>
+    <button class="btn-effect" onclick="sendEffect('BLINK')">Blink</button>
+    <button class="btn-effect" onclick="sendEffect('STROBE')">Strobe</button>
+    <button class="btn-effect" onclick="sendEffect('RAINBOW')">Rainbow Wave</button>
+    
+    <button class="btn-off" onclick="sendEffect('OFF')">Turn LEDs Off</button>
 
-        connectBtn.addEventListener('click', async () => {
-            try {
-                statusEl.textContent = 'Scanning...';
-                bleDevice = await navigator.bluetooth.requestDevice({
-                    filters: [{ name: 'ESP32-C6-LED' }],
-                    optionalServices: [SERVICE_UUID]
-                });
-                const server = await bleDevice.gatt.connect();
-                const service = await server.getPrimaryService(SERVICE_UUID);
-                rxCharacteristic = await service.getCharacteristic(RX_UUID);
-                statusEl.textContent = 'Connected';
-                connectBtn.textContent = 'Disconnect';
-                connectBtn.onclick = () => {
-                    bleDevice.gatt.disconnect();
-                    statusEl.textContent = 'Disconnected';
-                    connectBtn.textContent = 'Connect';
-                    connectBtn.onclick = null;
-                };
-                bleDevice.addEventListener('gattserverdisconnected', () => {
-                    statusEl.textContent = 'Disconnected';
-                    connectBtn.textContent = 'Connect';
-                });
-            } catch (e) {
-                statusEl.textContent = 'Failed: ' + e.message;
-            }
-        });
+    <div class="log-box" id="log">Console ready...</div>
+</div>
 
-        async function sendCommand(cmd) {
-            if (!rxCharacteristic) { statusEl.textContent = 'Not connected'; return; }
-            try {
-                await rxCharacteristic.writeValue(new TextEncoder().encode(cmd));
-                statusEl.textContent = 'Sent: ' + cmd;
-            } catch (e) { statusEl.textContent = 'Write failed'; }
+<script>
+    // UUID configurations precisely matching your XIAO firmware
+    const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
+    const RX_CHARACTERISTIC_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+
+    let bleDevice = null;
+    let rxCharacteristic = null;
+
+    function log(message) {
+        const consoleLog = document.getElementById('log');
+        consoleLog.innerText = `> ${message}`;
+        consoleLog.scrollTop = consoleLog.scrollHeight;
+    }
+
+    function updateSpeedLabel(val) {
+        document.getElementById('lbl-speed').innerText = `Effect Speed: ${val} ms`;
+    }
+
+    async function connectDisconnect() {
+        if (bleDevice && bleDevice.gatt.connected) {
+            log("Disconnecting...");
+            bleDevice.gatt.disconnect();
+            return;
         }
 
-        applyBtn.addEventListener('click', () => {
-            const mode = effectSelect.value;
-            const speed = speedSlider.value;
-            const c1 = color1.value.slice(1);
-            const c2 = color2.value.slice(1);
-            let cmd = '';
-            switch (mode) {
-                case 'SOLID':   cmd = `SOLID:${c1}`; break;
-                case 'BREATHE': cmd = `BREATHE:${speed}:${c1}`; break;
-                case 'FADE':    cmd = `FADE:${speed}:${c1}:${c2}`; break;
-                case 'CANDLE':  cmd = `CANDLE:${speed}:${c1}`; break;
-                case 'BLINK':   cmd = `BLINK:${speed}:${c1}`; break;
-                case 'STROBE':  cmd = `STROBE:${speed}:${c1}`; break;
-                case 'RAINBOW': cmd = `RAINBOW:${speed}`; break;
-            }
-            sendCommand(cmd);
-        });
+        try {
+            log("Requesting ESP32-C6 Bluetooth Device...");
+            bleDevice = await navigator.bluetooth.requestDevice({
+                filters: [{ name: 'ESP32-C6-LED' }],
+                optionalServices: [SERVICE_UUID]
+            });
 
-        offBtn.addEventListener('click', () => sendCommand('OFF'));
-    </script>
+            bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
+
+            log("Connecting to GATT Server...");
+            const server = await bleDevice.gatt.connect();
+
+            log("Locating Custom LED Service...");
+            const service = await server.getPrimaryService(SERVICE_UUID);
+
+            log("Fetching RX Writing Characteristic...");
+            rxCharacteristic = await service.getCharacteristic(RX_CHARACTERISTIC_UUID);
+
+            // Update UI state to Connected
+            document.getElementById('status-text').innerText = "Connected";
+            document.getElementById('status-dot').classList.add('connected');
+            document.getElementById('btn-conn').innerText = "Disconnect";
+            document.getElementById('btn-conn').className = "btn-disconnect";
+            log("Fully Bonded! Ready to stream.");
+
+        } catch (error) {
+            log(`Error: ${error.message}`);
+            console.error(error);
+        }
+    }
+
+    function onDisconnected() {
+        document.getElementById('status-text').innerText = "Disconnected";
+        document.getElementById('status-dot').classList.remove('connected');
+        document.getElementById('btn-conn').innerText = "Connect to ESP32-C6";
+        document.getElementById('btn-conn').className = "btn-connect";
+        rxCharacteristic = null;
+        bleDevice = null;
+        log("Peripheral Disconnected Safely.");
+    }
+
+    async function sendEffect(mode) {
+        if (!rxCharacteristic) {
+            log("Error: Must connect to Bluetooth first!");
+            return;
+        }
+
+        // Extract parameters from inputs and scrub the default hex '#' marker
+        const cA = document.getElementById('colorA').value.replace('#', '');
+        const cB = document.getElementById('colorB').value.replace('#', '');
+        const speed = document.getElementById('speed').value;
+        
+        let commandStr = "";
+
+        // Construct commands strictly adhering to the firmware string-free schema
+        switch(mode) {
+            case 'SOLID':
+                commandStr = `SOLID:${cA}`;
+                break;
+            case 'BREATHE':
+                commandStr = `BREATHE:${speed}:${cA}`;
+                break;
+            case 'FADE':
+                commandStr = `FADE:${speed}:${cA}:${cB}`;
+                break;
+            case 'CANDLE':
+                commandStr = `CANDLE:${speed}:${cA}`;
+                break;
+            case 'BLINK':
+                commandStr = `BLINK:${speed}:${cA}`;
+                break;
+            case 'STROBE':
+                commandStr = `STROBE:${speed}:${cA}`;
+                break;
+            case 'RAINBOW':
+                commandStr = `RAINBOW:${speed}`;
+                break;
+            case 'OFF':
+                commandStr = "OFF";
+                break;
+        }
+
+        try {
+            log(`Streaming payload: "${commandStr}"`);
+            // Convert to byte buffer array transmission
+            const encoder = new TextEncoder();
+            const data = encoder.encode(commandStr);
+            await rxCharacteristic.writeValue(data);
+        } catch(error) {
+            log(`Tx Failed: ${error.message}`);
+        }
+    }
+</script>
+
 </body>
 </html>
