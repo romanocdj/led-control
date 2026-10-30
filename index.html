@@ -28,10 +28,7 @@
             border-radius: 12px;
             box-shadow: 0 4px 15px rgba(0,0,0,0.5);
         }
-        h1, h2 {
-            text-align: center;
-            margin-top: 0;
-        }
+        h1, h2 { text-align: center; margin-top: 0; }
         .status-panel {
             display: flex;
             justify-content: space-between;
@@ -42,15 +39,12 @@
             margin-bottom: 20px;
         }
         .status-dot {
-            width: 12px;
-            height: 12px;
+            width: 12px; height: 12px;
             background-color: #ff4444;
             border-radius: 50%;
             display: inline-block;
         }
-        .status-dot.connected {
-            background-color: #00c851;
-        }
+        .status-dot.connected { background-color: #00c851; }
         button {
             width: 100%;
             padding: 12px;
@@ -61,10 +55,7 @@
             cursor: pointer;
             transition: background 0.2s;
         }
-        .btn-connect {
-            background-color: var(--accent-color);
-            color: #fff;
-        }
+        .btn-connect { background-color: var(--accent-color); color: #fff; }
         .btn-connect:hover { background-color: #008c95; }
         .btn-disconnect { background-color: #cc0000; color: #fff; }
         .btn-effect { background-color: #333; color: #fff; margin-bottom: 10px; }
@@ -76,12 +67,7 @@
             padding: 15px;
             border-radius: 8px;
         }
-        label {
-            display: block;
-            margin-bottom: 8px;
-            font-size: 14px;
-            color: #aaa;
-        }
+        label { display: block; margin-bottom: 8px; font-size: 14px; color: #aaa; }
         select {
             width: 100%;
             padding: 10px;
@@ -92,28 +78,19 @@
             font-size: 16px;
         }
         input[type="color"] {
-            width: 100%;
-            height: 40px;
-            border: none;
-            border-radius: 4px;
-            background: none;
-            cursor: pointer;
+            width: 100%; height: 40px;
+            border: none; border-radius: 4px;
+            background: none; cursor: pointer;
         }
-        input[type="range"] {
-            width: 100%;
-            accent-color: var(--accent-color);
-        }
-        .color-pickers {
-            display: flex;
-            gap: 10px;
-        }
+        input[type="range"] { width: 100%; accent-color: var(--accent-color); }
+        .color-pickers { display: flex; gap: 10px; }
         .picker-box { flex: 1; }
         .log-box {
             background: #000;
             font-family: monospace;
             padding: 10px;
             border-radius: 6px;
-            height: 60px;
+            height: 70px;
             overflow-y: auto;
             font-size: 12px;
             color: #00ff00;
@@ -131,7 +108,7 @@
     </div>
     <button id="btn-conn" class="btn-connect" onclick="connectDisconnect()">Connect to ESP32-C3</button>
     <hr style="border: 0; border-top: 1px solid #333; margin: 20px 0;">
-    <!-- Target LED Selector Section -->
+
     <div class="control-group">
         <label for="led-index">Target LED Selection</label>
         <select id="led-index">
@@ -144,7 +121,7 @@
             <option value="5">LED 6</option>
         </select>
     </div>
-    <!-- Color Configuration Panel -->
+
     <div class="control-group">
         <div class="color-pickers">
             <div class="picker-box">
@@ -157,12 +134,12 @@
             </div>
         </div>
     </div>
-    <!-- Speed Adjustment Panel -->
+
     <div class="control-group">
         <label id="lbl-speed">Effect Speed: 1000 ms</label>
         <input type="range" id="speed" min="50" max="3000" step="50" value="1000" oninput="updateSpeedLabel(this.value)">
     </div>
-    <!-- Animation Commands -->
+
     <h2>Animations</h2>
     <button class="btn-effect" onclick="sendEffect('SOLID')">Solid Color</button>
     <button class="btn-effect" onclick="sendEffect('BREATHE')">Breathe</button>
@@ -175,10 +152,11 @@
     <button class="btn-off" onclick="sendEffect('OFF')">Turn Selected Off</button>
     <div class="log-box" id="log">Console ready...</div>
 </div>
+
 <script>
-    // GATT UUIDs matching your firmware configuration
     const SERVICE_UUID = "6e400001-b5a3-f393-e0a9-e50e24dcca9e";
     const RX_CHARACTERISTIC_UUID = "6e400002-b5a3-f393-e0a9-e50e24dcca9e";
+
     let bleDevice = null;
     let rxCharacteristic = null;
 
@@ -199,25 +177,28 @@
             return;
         }
         try {
-            log("Searching for ESP32-C3 Peripheral...");
+            log("Searching for ESP32-C3...");
             bleDevice = await navigator.bluetooth.requestDevice({
-                filters: [{ name: 'ESP32-C3-LED' }],
+                // Most reliable method – search by the Nordic UART service
+                filters: [{ services: [SERVICE_UUID] }],
                 optionalServices: [SERVICE_UUID]
             });
+
             bleDevice.addEventListener('gattserverdisconnected', onDisconnected);
             log("Connecting to server...");
             const server = await bleDevice.gatt.connect();
-            log("Fetching service profile...");
+            log("Fetching service...");
             const service = await server.getPrimaryService(SERVICE_UUID);
-            log("Fetching writing interface profile...");
+            log("Fetching RX characteristic...");
             rxCharacteristic = await service.getCharacteristic(RX_CHARACTERISTIC_UUID);
+
             document.getElementById('status-text').innerText = "Connected";
             document.getElementById('status-dot').classList.add('connected');
             document.getElementById('btn-conn').innerText = "Disconnect";
             document.getElementById('btn-conn').className = "btn-disconnect";
-            log("Link active! Pipeline ready.");
+            log("Connected successfully!");
         } catch (error) {
-            log(`Link Exception: ${error.message}`);
+            log(`Error: ${error.message}`);
             console.error(error);
         }
     }
@@ -227,4 +208,47 @@
         document.getElementById('status-dot').classList.remove('connected');
         document.getElementById('btn-conn').innerText = "Connect to ESP32-C3";
         document.getElementById('btn-conn').className = "btn-connect";
-        rxCharacteristic = 
+        rxCharacteristic = null;
+        bleDevice = null;
+        log("Device disconnected");
+    }
+
+    async function sendEffect(mode) {
+        if (!rxCharacteristic) {
+            log("Error: Not connected");
+            return;
+        }
+
+        const ledSel = document.getElementById('led-index').value;
+        const cA = document.getElementById('colorA').value.replace('#', '');
+        const cB = document.getElementById('colorB').value.replace('#', '');
+        const speed = document.getElementById('speed').value;
+
+        let commandStr = "";
+        switch (mode) {
+            case 'SOLID':   commandStr = `SOLID:${ledSel}:${cA}`; break;
+            case 'BREATHE': commandStr = `BREATHE:${ledSel}:${speed}:${cA}`; break;
+            case 'FADE':    commandStr = `FADE:${ledSel}:${speed}:${cA}:${cB}`; break;
+            case 'CANDLE':  commandStr = `CANDLE:${ledSel}:${speed}:${cA}`; break;
+            case 'BLINK':   commandStr = `BLINK:${ledSel}:${speed}:${cA}`; break;
+            case 'STROBE':  commandStr = `STROBE:${ledSel}:${speed}:${cA}`; break;
+            case 'RAINBOW': commandStr = `RAINBOW:${ledSel}:${speed}`; break;
+            case 'OFF':
+                commandStr = (ledSel === "255") ? "OFF" : `OFF:${ledSel}`;
+                break;
+            default:
+                log("Unknown mode");
+                return;
+        }
+
+        try {
+            const encoder = new TextEncoder();
+            await rxCharacteristic.writeValue(encoder.encode(commandStr));
+            log("Sent → " + commandStr);
+        } catch (err) {
+            log("Write failed: " + err.message);
+        }
+    }
+</script>
+</body>
+</html>
